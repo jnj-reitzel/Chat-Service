@@ -14,20 +14,20 @@
 
 using boost::asio::ip::tcp;
 
-class tcp_connection
-    : public std::enable_shared_from_this<tcp_connection> 
+class connection
+    : public std::enable_shared_from_this<connection> 
 {
 public:
-    typedef std::shared_ptr<tcp_connection> pointer;
+    typedef std::shared_ptr<connection> pointer;
     static inline int count = 0;
 
     static pointer New(boost::asio::io_context& io_context)
     {
-        return pointer(new tcp_connection(io_context));
+        return pointer(new connection(io_context));
     }
-    void start() {
-        do_read();
-    }
+    // void start() {
+    //     do_read();
+    // }
 
     tcp::socket& socket()
     {
@@ -39,30 +39,22 @@ public:
         return id_;
     }
 
+    boost::asio::streambuf& input_buffer() 
+    {
+        return input_buffer_;
+    }
+
 private:
 
-    tcp_connection(boost::asio::io_context& io_context)
+    connection(boost::asio::io_context& io_context)
         :   socket_(io_context), 
             id_(count++) 
         {}
 
-    void do_read() {
-        auto self(shared_from_this());
-        boost::asio::async_read_until(socket_, input_buffer_, '\n',
-            [this, self](boost::system::error_code ec, std::size_t length) {
-                if (!ec) {
-                    std::string message(boost::asio::buffers_begin(input_buffer_.data()), boost::asio::buffers_begin(input_buffer_.data()) + length);
-                    input_buffer_.consume(length); // Remove consumed input from the streambuf
-                    std::cout << "User " << id_ << " says: " << message;
-                    do_read(); // Continue reading
-                } else {
-                    std::cerr << "Error reading message from user " << id_ << ": " << ec.message() << std::endl;
-                }
-            });
-    }
 
     tcp::socket socket_;
     int id_;
+    std::string username_;
     boost::asio::streambuf input_buffer_;
 };
 
@@ -73,7 +65,7 @@ public:
         :   io_context_(),
             acceptor_(io_context_, tcp::endpoint(tcp::v4(), port))
     {
-        do_accept();
+        accept_new_connection();
     }
 
     void run()  {
@@ -81,25 +73,57 @@ public:
     }
 
 private:
-    void do_accept() {
-        tcp_connection::pointer new_connection = tcp_connection::New(io_context_);
+    void accept_new_connection() {
+        connection::pointer new_connection = connection::New(io_context_);
 
         acceptor_.async_accept(new_connection->socket(),
             [this, new_connection](boost::system::error_code ec) {
             // [this](boost::system::error_code ec) {
                 if (!ec) {
                     std::cout << "New connection "  << std::endl;
-                    // auto session = std::make_shared<tcp_connection>(std::move(socket), next_id_++);
-                    sessions_.push_back(new_connection);
-                    new_connection->start();
+                    // auto session = std::make_shared<connection>(std::move(socket), next_id_++);
+                    connections.push_back(new_connection);
+                    read_and_broadcast(new_connection);
                 }
-                do_accept();
+                accept_new_connection();
         });
+    }
+    void read_and_broadcast(connection::pointer existing_connection) {
+        // auto self(shared_from_this());
+        boost::asio::async_read_until(existing_connection->socket(), existing_connection->input_buffer(), '\n',
+            [this, existing_connection](boost::system::error_code ec, std::size_t length) {
+                boost::asio::streambuf& buffer = existing_connection->input_buffer();
+                if (!ec) {
+                    std::string message(boost::asio::buffers_begin(buffer.data()), boost::asio::buffers_begin(buffer.data()) + length);
+                    existing_connection->input_buffer().consume(length); // Remove consumed input from the streambuf
+                    std::cout << "User "<< " says: " << message;
+                    broadcast(message, existing_connection);
+                    read_and_broadcast(existing_connection); // Continue reading
+                } else {
+                    std::cerr << "Error reading message from user " << ": " << ec.message() << std::endl;
+                }
+            });
+    }
+
+    void broadcast(const std::string& message, connection::pointer origin_connection)
+    {;
+        for (auto& con : connections) 
+        {
+            if (con != origin_connection) 
+            {
+                boost::asio::async_write(con->socket(), boost::asio::buffer(message),
+                [](const boost::system::error_code& error, std::size_t bytes_transferred) {
+                    if (error) {
+                        std::cerr << "Error sending message: " << error.message() << std::endl;
+                    }
+                });
+            }
+        }
     }
 
     boost::asio::io_context io_context_;
     tcp::acceptor acceptor_;
-    std::vector<tcp_connection::pointer> sessions_;
+    std::vector<connection::pointer> connections;
 };
 
 
