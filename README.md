@@ -13,8 +13,8 @@ A bash script `install-dependencies.sh` is provided.
 ## Build
 The build can be done using GNU Make.
 The source code should be cross-platform compilable.
-The Makefile uses `g++` as compiler.
-Call `make' in the top directory to build the applications.
+The Makefile uses `g++` as a compiler.
+Call `make` in the top directory to build the applications.
 
 ## Run
 First run `./bin/server` to start the chat server.
@@ -24,4 +24,4 @@ By default the server accepts and the clients connect to `localhost` port `8080`
 However, you can specify an **IP** address and **PORT** number as the first and second program arguments.
 
 ## Tested
-Currently the applications have been tested on Ubuntu 22.04.3 LTS with g++ 12.3.
+The applications have been tested on Ubuntu 22.04.3 LTS with g++ 12.3.
