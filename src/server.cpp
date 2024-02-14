@@ -14,7 +14,6 @@
 
 using boost::asio::ip::tcp;
 class connection
-    : public std::enable_shared_from_this<connection> 
 {
 public:
     typedef std::shared_ptr<connection> pointer; 
@@ -129,6 +128,7 @@ private:
                 } else if (ec == boost::asio::error::eof) {
                     // Handle end-of-file condition (EOF)
                     std::cerr << "Closed connection: " << existing_connection->to_string() << std::endl;
+                    std::remove(connections.begin(), connections.end(), existing_connection);
                 } else {
                     // Handle other errors
                     std::cerr << "Error reading message: " << ec.message() 
@@ -146,7 +146,8 @@ private:
             {
                 boost::asio::async_write(con->socket(), boost::asio::buffer(mod_message),
                 [](const boost::system::error_code& error, std::size_t) {
-                    if (error) {
+                    if (error && error != boost::asio::error::broken_pipe && error != boost::system::errc::success) 
+                    {
                         std::cerr << "Error sending message: " << error.message() << std::endl;
                     }
                 });
