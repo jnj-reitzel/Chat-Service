@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=
+CXXFLAGS= -std=c++11 -O3 -Wall -Wextra -Weffc++ -pedantic
 
 BIN_DIR=bin
 SRC_DIR=src
